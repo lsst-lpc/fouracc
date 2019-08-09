@@ -564,6 +564,8 @@ const page = `<html>
 				alert("removing ["+id+"] failed: "+e);
 			}
 		});
+
+		$("#"+id).remove();
 	}
 
 </script>
