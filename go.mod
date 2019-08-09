@@ -9,6 +9,6 @@ require (
 	go-hep.org/x/hep v0.19.0
 	golang.org/x/crypto v0.0.0-20190510104115-cbcb75029529
 	golang.org/x/mobile v0.0.0-20190806162312-597adff16ade // indirect
-	gonum.org/v1/gonum v0.0.0-20190808090821-99e48c9b02fc
+	gonum.org/v1/gonum v0.0.0-20190808205415-ced62fe5104b
 	gonum.org/v1/plot v0.0.0-20190615073203-9aa86143727f
 )

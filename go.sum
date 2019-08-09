@@ -117,8 +117,8 @@ gonum.org/v1/gonum v0.0.0-20180816165407-929014505bf4/go.mod h1:Y+Yx5eoAFn32cQvJ
 gonum.org/v1/gonum v0.0.0-20190331200053-3d26580ed485/go.mod h1:2ltnJ7xHfj0zHS40VVPYEAAMTa3ZGguvHGBSJeRWqE0=
 gonum.org/v1/gonum v0.0.0-20190424212039-2a1643c79af2 h1:KTRD63fFTJiXuYJfxAI7BLujKCVAi7s9QD7rgzfY7MU=
 gonum.org/v1/gonum v0.0.0-20190424212039-2a1643c79af2/go.mod h1:2ltnJ7xHfj0zHS40VVPYEAAMTa3ZGguvHGBSJeRWqE0=
-gonum.org/v1/gonum v0.0.0-20190808090821-99e48c9b02fc h1:E7NtqjosU20dVLHCRHWlgyZZoh8Utb2+xfAD3O9vD88=
-gonum.org/v1/gonum v0.0.0-20190808090821-99e48c9b02fc/go.mod h1:9mxDZsDKxgMAuccQkewq682L+0eCu4dCN2yonUJTCLU=
+gonum.org/v1/gonum v0.0.0-20190808205415-ced62fe5104b h1:wlZ2AJblZitrh7dfm5OX2WenXLBZCuWqUeNczop2lPA=
+gonum.org/v1/gonum v0.0.0-20190808205415-ced62fe5104b/go.mod h1:9mxDZsDKxgMAuccQkewq682L+0eCu4dCN2yonUJTCLU=
 gonum.org/v1/netlib v0.0.0-20190313105609-8cb42192e0e0/go.mod h1:wa6Ws7BG/ESfp6dHfk7C6KdzKA7wR7u/rKwOGE66zvw=
 gonum.org/v1/netlib v0.0.0-20190331212654-76723241ea4e h1:jRyg0XfpwWlhEV8mDfdNGBeSJM2fuyh9Yjrnd8kF2Ts=
 gonum.org/v1/netlib v0.0.0-20190331212654-76723241ea4e/go.mod h1:kS+toOQn6AQKjmKJ7gzohV1XkqsFehRA2FbsbkopSuQ=
