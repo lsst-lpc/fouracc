@@ -51,6 +51,7 @@ options:
 	if err != nil {
 		log.Panicf("could not create temporary directory: %v", err)
 	}
+	log.Printf("scratch directory: %q", dir)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
