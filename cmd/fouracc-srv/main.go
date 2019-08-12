@@ -61,6 +61,7 @@ options:
 func run(dir string, c chan os.Signal) {
 	defer func() {
 		log.Printf("shutdown sequence...")
+		log.Printf("removing directory %q...", dir)
 		os.RemoveAll(dir)
 	}()
 
