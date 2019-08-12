@@ -7,11 +7,17 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/lsst-lpc/fouracc"
+	"github.com/lsst-lpc/fouracc/msr"
+	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 	"gonum.org/v1/plot/vg"
 	"gonum.org/v1/plot/vg/draw"
 	"gonum.org/v1/plot/vg/vgimg"
@@ -34,13 +40,68 @@ func main() {
 	}
 	defer f.Close()
 
-	xs, ys, err := fouracc.Load(f)
+	var (
+		xs   []float64
+		ys   []float64
+		head [64]byte
+	)
+
+	_, err = f.Read(head[:])
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("could not read CSV header: %v", err)
 	}
+	f.Seek(0, io.SeekStart)
+
+	switch {
+	case strings.HasPrefix(string(head[:]), "*CREATOR"):
+		msr, err := msr.Parse(f)
+		if err != nil {
+			log.Fatalf("could not parse MSR file: %v", err)
+		}
+		ts := msr.TimeSeries()
+		var grp errgroup.Group
+		for _, tt := range []struct {
+			Name string
+			Data []float64
+		}{
+			{"x", msr.AccX()},
+			{"y", msr.AccY()},
+			{"z", msr.AccZ()},
+		} {
+			grp.Go(func() error {
+				tt := tt
+				err := process(filepath.Base(flag.Arg(0)), tt.Name, *chunksz, ts, tt.Data)
+				if err != nil {
+					return errors.Wrapf(err, "could not process axis %s: %v", tt.Name, err)
+				}
+				return nil
+			})
+		}
+		err = grp.Wait()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+	default:
+		xs, ys, err = fouracc.Load(f)
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = process(filepath.Base(flag.Arg(0)), "", *chunksz, xs, ys)
+		if err != nil {
+			log.Fatalf("could not process data: %v", err)
+		}
+	}
+}
+
+func process(fname, title string, chunksz int, xs, ys []float64) error {
 	log.Printf("data: %d", len(ys))
 
-	fft := fouracc.ChunkedFFT(filepath.Base(flag.Arg(0)), *chunksz, xs, ys)
+	if title != "" {
+		fname += " [axis=" + title + "]"
+	}
+
+	fft := fouracc.ChunkedFFT(fname, chunksz, xs, ys)
 	log.Printf("coeffs: %d", len(fft.Coeffs))
 	{
 		c, r := fft.Dims()
@@ -53,22 +114,29 @@ func main() {
 	)
 
 	c := vgimg.PngCanvas{Canvas: vgimg.New(width, height)}
-	err = fouracc.Plot(draw.New(c), fft)
+	err := fouracc.Plot(draw.New(c), fft)
 	if err != nil {
-		log.Fatal(err)
+		return errors.Wrap(err, "could not plot FFT")
 	}
 
-	o, err := os.Create("out.png")
+	oname := "out.png"
+	if title != "" {
+		oname = fmt.Sprintf("out-%s.png", title)
+	}
+
+	o, err := os.Create(oname)
 	if err != nil {
-		log.Fatalf("error: %v\n", err)
+		return errors.Wrapf(err, "could not create output file")
 	}
 	defer o.Close()
 	_, err = c.WriteTo(o)
 	if err != nil {
-		log.Fatal(err)
+		return errors.Wrapf(err, "could not create output plot")
 	}
 	err = o.Close()
 	if err != nil {
-		log.Fatal(err)
+		return errors.Wrapf(err, "could not close output file")
 	}
+
+	return nil
 }
