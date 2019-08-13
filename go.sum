@@ -30,8 +30,8 @@ github.com/jung-kurt/gofpdf v1.0.0/go.mod h1:7Id9E/uU8ce6rXgefFLlgrJj/GYY22cpxn+
 github.com/jung-kurt/gofpdf v1.0.3-0.20190309125859-24315acbbda5/go.mod h1:7Id9E/uU8ce6rXgefFLlgrJj/GYY22cpxn+r32jIOes=
 github.com/jung-kurt/gofpdf v1.2.0 h1:UBbYoN5RbArI27c9TxHN1865wKANgAMIcgN8N81flyk=
 github.com/jung-kurt/gofpdf v1.2.0/go.mod h1:wX2KGO3WFsMh4Bfq4JTmx9uRQpBAyolOpS+d8OYodPo=
-github.com/jung-kurt/gofpdf v1.5.4 h1:9jOlikrlcXb7Z1spJCahRr/FzA87zDuw+9k+MYH0b68=
-github.com/jung-kurt/gofpdf v1.5.4/go.mod h1:oIiEpiXAwTUssrFUGgVj4SO17oiCYsfnTjeQZz/amnM=
+github.com/jung-kurt/gofpdf v1.7.0 h1:kOzNa/K23avfvIv57Gna6hn9YtJWxBsRK/KLlrTf+OE=
+github.com/jung-kurt/gofpdf v1.7.0/go.mod h1:s/VXv+TdctEOx2wCEguezYaR7f0OwUAd6H9VGfRkcSs=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
@@ -39,7 +39,7 @@ github.com/llgcode/draw2d v0.0.0-20180124133339-274031cf2abe/go.mod h1:th5ThsEAh
 github.com/llgcode/ps v0.0.0-20150911083025-f1443b32eedb/go.mod h1:1l8ky+Ew27CMX29uG+a2hNOKpeNYEQjjtiALiBlFQbY=
 github.com/mattn/go-runewidth v0.0.3/go.mod h1:LwmH8dsx7+W8Uxz3IHJYH5QSwggIsqBzpuz5H//U1FU=
 github.com/peterh/liner v1.1.0/go.mod h1:CRroGNssyjTd/qIG2FyxByd2S8JEAZXBl4qUrZf8GS0=
-github.com/phpdave11/gofpdi v1.0.3/go.mod h1:B7ryN7q4MLItB8BDM5PJAplblJegAAcaI98viOZUihg=
+github.com/phpdave11/gofpdi v1.0.7/go.mod h1:vBmVV0Do6hSBHC8uKUQ71JGW+ZGQq74llk/7bXwjDoI=
 github.com/pierrec/lz4 v2.0.5+incompatible h1:2xWsjqPFWcplujydGg4WmhC/6fZqK42wMM8aXeqhl0I=
 github.com/pierrec/lz4 v2.0.5+incompatible/go.mod h1:pdkljMzZIN41W+lC3N2tnIh5sFi+IEE17M5jbnwPHcY=
 github.com/pierrec/xxHash v0.1.5 h1:n/jBpwTHiER4xYvK3/CdPVnLDPchj8eTJFFLUb4QHBo=

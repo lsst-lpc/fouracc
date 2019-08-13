@@ -40,13 +40,9 @@ func main() {
 	}
 	defer f.Close()
 
-	var (
-		xs   []float64
-		ys   []float64
-		head [64]byte
-	)
+	var head [64]byte
 
-	_, err = f.Read(head[:])
+	_, err = io.ReadFull(f, head[:])
 	if err != nil {
 		log.Fatalf("could not read CSV header: %v", err)
 	}
@@ -83,7 +79,7 @@ func main() {
 		}
 
 	default:
-		xs, ys, err = fouracc.Load(f)
+		xs, ys, err := fouracc.Load(f)
 		if err != nil {
 			log.Fatal(err)
 		}

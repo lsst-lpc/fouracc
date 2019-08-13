@@ -4,7 +4,7 @@ go 1.13
 
 require (
 	github.com/hashicorp/go-uuid v1.0.1
-	github.com/jung-kurt/gofpdf v1.5.4 // indirect
+	github.com/jung-kurt/gofpdf v1.7.0 // indirect
 	github.com/pkg/errors v0.8.1
 	go-hep.org/x/hep v0.19.0
 	golang.org/x/crypto v0.0.0-20190510104115-cbcb75029529

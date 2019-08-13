@@ -24,8 +24,10 @@ import (
 
 	uuid "github.com/hashicorp/go-uuid"
 	"github.com/lsst-lpc/fouracc"
+	"github.com/lsst-lpc/fouracc/msr"
 	"github.com/pkg/errors"
 	"go-hep.org/x/hep/csvutil"
+	"golang.org/x/sync/errgroup"
 	"gonum.org/v1/plot/vg"
 	"gonum.org/v1/plot/vg/draw"
 	"gonum.org/v1/plot/vg/vgimg"
@@ -178,6 +180,19 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 		return errors.Wrapf(err, "could not parse multipart form")
 	}
 
+	id := r.PostFormValue("id")
+	if id == "" {
+		log.Printf("empty ID")
+		return errors.Wrap(err, "invalid form ID")
+	}
+
+	srv.mu.Lock()
+	if srv.ids[cookie.Value] == nil {
+		srv.ids[cookie.Value] = make(map[string]struct{})
+	}
+	srv.ids[cookie.Value][id] = struct{}{}
+	srv.mu.Unlock()
+
 	f, handler, err := r.FormFile("input-file")
 	if err != nil {
 		return errors.Wrapf(err, "could not access input file")
@@ -195,67 +210,90 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 	}
 	log.Printf("chunks: %d", chunksz)
 
-	xs, ys, err := fouracc.Load(f)
+	var head [64]byte
+	_, err = io.ReadFull(f, head[:])
 	if err != nil {
-		log.Printf(">>> err load: %v", err)
-		return errors.Wrapf(err, "could not load input file")
+		return errors.Wrap(err, "could not read CSV header")
+	}
+	_, err = f.Seek(0, io.SeekStart)
+	if err != nil {
+		return errors.Wrap(err, "could not rewind CSV file")
 	}
 
-	log.Printf("xs: %d, %d", len(xs), len(ys))
-
-	fft := fouracc.ChunkedFFT(fname, chunksz, xs, ys)
-	log.Printf("coeffs: %d", len(fft.Coeffs))
-	{
-		c, r := fft.Dims()
-		log.Printf("dims: (c=%d, r=%d)", c, r)
-	}
-
-	const (
-		width  = 20 * vg.Centimeter
-		height = 30 * vg.Centimeter
+	var (
+		isMSR = strings.HasPrefix(string(head[:]), "*CREATOR")
+		imgs  [][]byte
+		names []string
 	)
 
-	c := vgimg.PngCanvas{Canvas: vgimg.New(width, height)}
-	err = fouracc.Plot(draw.New(c), fft)
-	if err != nil {
-		log.Printf(">>> err plot: %v", err)
-		return errors.Wrapf(err, "could not create in-memory plot")
+	switch {
+	case isMSR:
+		msr, err := msr.Parse(f)
+		if err != nil {
+			log.Fatalf("could not parse MSR file: %v", err)
+		}
+		ts := msr.TimeSeries()
+		var (
+			grp errgroup.Group
+		)
+		imgs = make([][]byte, 3)
+		names = make([]string, 3)
+		for _, tt := range []struct {
+			id   int
+			name string
+			data []float64
+		}{
+			{0, "x", msr.AccX()},
+			{1, "y", msr.AccY()},
+			{2, "z", msr.AccZ()},
+		} {
+			tt := tt
+			grp.Go(func() error {
+				img, err := srv.process(id, fname, tt.name, chunksz, ts, tt.data)
+				if err != nil {
+					return errors.Wrapf(err, "could not process axis %s: %v", tt.name, err)
+				}
+				imgs[tt.id] = img
+				names[tt.id] = tt.name
+				return nil
+			})
+		}
+		err = grp.Wait()
+		if err != nil {
+			return errors.Wrap(err, "could not process MSR file")
+		}
+
+	default:
+		xs, ys, err := fouracc.Load(f)
+		if err != nil {
+			log.Printf(">>> err load: %v", err)
+			return errors.Wrapf(err, "could not load input file")
+		}
+
+		img, err := srv.process(id, fname, "", chunksz, xs, ys)
+		if err != nil {
+			return errors.Wrap(err, "could not process CSV file")
+		}
+		imgs = append(imgs, img)
+		names = append(names, "")
 	}
 
-	img := new(bytes.Buffer)
-	_, err = c.WriteTo(img)
-	if err != nil {
-		log.Printf(">>> err write plot: %v", err)
-		return errors.Wrapf(err, "could not create image plot")
-	}
-
-	id := r.PostFormValue("id")
-	if id == "" {
-		log.Printf("empty ID")
-		return errors.Wrap(err, "invalid form ID")
-	}
-
-	srv.mu.Lock()
-	if srv.ids[cookie.Value] == nil {
-		srv.ids[cookie.Value] = make(map[string]struct{})
-	}
-	srv.ids[cookie.Value][id] = struct{}{}
-	srv.mu.Unlock()
-
-	dir := filepath.Join(srv.dir, "id", id)
-	err = srv.save(dir, id, fname, img.Bytes(), fft)
-	if err != nil {
-		log.Printf("could not save report for %q: %v", fname, err)
-		return errors.Wrapf(err, "could not save report for %q", fname)
+	var (
+		stdimgs = make([]string, len(imgs))
+	)
+	for i, img := range imgs {
+		stdimgs[i] = base64.StdEncoding.EncodeToString(img)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
 	err = json.NewEncoder(w).Encode(struct {
-		Image string `json:"data"`
+		Names  []string `json:"names"`
+		Images []string `json:"imgs"`
 	}{
-		Image: base64.StdEncoding.EncodeToString(img.Bytes()),
+		Names:  names,
+		Images: stdimgs,
 	})
 	if err != nil {
 		log.Printf(">>> err json encoder: %v", err)
@@ -282,6 +320,14 @@ func (srv *server) dlHandle(w http.ResponseWriter, r *http.Request) error {
 		return errors.Errorf("invalid ID")
 	}
 
+	axis := r.Form.Get("axis")
+	switch axis {
+	case "", "x", "y", "z":
+		// ok
+	default:
+		return errors.Errorf("invalid axis %q", axis)
+	}
+
 	srv.mu.RLock()
 	defer srv.mu.RUnlock()
 	if _, ok := srv.ids[cookie.Value][id]; !ok {
@@ -291,14 +337,19 @@ func (srv *server) dlHandle(w http.ResponseWriter, r *http.Request) error {
 
 	dir := filepath.Join(srv.dir, "id", id)
 
-	matches, err := filepath.Glob(filepath.Join(dir, "*.csv"))
+	glob := "*.csv"
+	if axis != "" {
+		glob = "*-" + axis + ".processed.*.csv"
+	}
+
+	matches, err := filepath.Glob(filepath.Join(dir, glob))
 	if err != nil {
 		log.Printf("could not find data file report for id %q: %v", id, err)
 		return errors.Wrapf(err, "could not find data file report for %q", id)
 	}
 
 	if len(matches) != 1 {
-		log.Printf("invalid number of data file report(s) for id %q: got=%d, want=1", id, len(matches))
+		log.Printf("invalid number of data file report(s) for id %q (glob=%q): got=%d, want=1\nmatches: %q", id, glob, len(matches), matches)
 		return errors.Errorf("invalid number of data file report(s) for id %q: got=%d, want=1", id, len(matches))
 	}
 
@@ -359,7 +410,7 @@ func (srv *server) rmHandle(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (srv *server) save(dir, id, fname string, img []byte, fft fouracc.FFT) error {
+func (srv *server) save(dir, id, fname, axis string, img []byte, fft fouracc.FFT) error {
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		log.Printf("could not create output directory for results %s: %v", dir, err)
@@ -367,6 +418,9 @@ func (srv *server) save(dir, id, fname string, img []byte, fft fouracc.FFT) erro
 	}
 
 	bname := fname[:len(fname)-len(filepath.Ext(fname))]
+	if axis != "" {
+		bname += "-" + axis
+	}
 	err = ioutil.WriteFile(filepath.Join(dir, bname+".png"), img, 0644)
 	if err != nil {
 		log.Printf("could not save plot file %s: %v", bname+".png", err)
@@ -403,6 +457,44 @@ func (srv *server) save(dir, id, fname string, img []byte, fft fouracc.FFT) erro
 	}
 
 	return nil
+}
+
+func (srv *server) process(id, fname, axis string, chunksz int, xs, ys []float64) ([]byte, error) {
+	name := fname
+	if axis != "" {
+		name += " [axis=" + axis + "]"
+	}
+
+	log.Printf("processing %q...", name)
+
+	fft := fouracc.ChunkedFFT(name, chunksz, xs, ys)
+
+	const (
+		width  = 20 * vg.Centimeter
+		height = 30 * vg.Centimeter
+	)
+
+	c := vgimg.PngCanvas{Canvas: vgimg.New(width, height)}
+	err := fouracc.Plot(draw.New(c), fft)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not plot FFT")
+	}
+
+	o := new(bytes.Buffer)
+	_, err = c.WriteTo(o)
+	if err != nil {
+		return nil, errors.Wrapf(err, "could not create output plot")
+	}
+
+	dir := filepath.Join(srv.dir, "id", id)
+	err = srv.save(dir, id, fname, axis, o.Bytes(), fft)
+	if err != nil {
+		log.Printf("could not save report for %q: %v", name, err)
+		return nil, errors.Wrapf(err, "could not save report for %q", name)
+	}
+
+	log.Printf("processing %q... [done]", name)
+	return o.Bytes(), nil
 }
 
 const page = `<html>
@@ -526,15 +618,23 @@ const page = `<html>
 	};
 
 	function plotCallback(data, status, id) {
-		var img = data;
 		var node = $("#"+id);
-		node.html(
-			"<img src=\"data:image/png;base64, "+ img.data + "\" />"
-			+"<span onclick=\"this.parentElement.style.display='none'; updateHeight(); rmResults('"+id+"')\" class=\"w3-button w3-display-topright w3-hover-red w3-tiny\">X</span>"
-			+"<form>\n"
-			+" <input type=\"button\" value=\"Download\" onclick=\"window.location.href='/dl?id="+id+"'\"/>\n"
-			+"</form>\n"
-		);
+		node.html("<span onclick=\"this.parentElement.style.display='none'; updateHeight(); rmResults('"+id+"')\" class=\"w3-button w3-display-topright w3-hover-red w3-tiny\">X</span>");
+		data.imgs.forEach(function(v, i, arr) {
+			var button = "Download"
+			if (data.names[i] != "") {
+				button = "Download "+data.names[i]+"-axis";
+			}
+			node.append(
+				"<br>\n"
+				+"<div>\n"
+				+"<img src=\"data:image/png;base64, "+ v + "\" />"
+				+"<form>\n"
+				+" <input type=\"button\" value=\""+button+"\" onclick=\"window.location.href='/dl?id="+id+"&axis="+data.names[i]+"'\"/>\n"
+				+"</form>\n"
+				+"</div>\n"
+			);
+		});
 		updateHeight();
 	};
 
