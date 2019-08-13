@@ -33,25 +33,35 @@ func (f File) TimeSeries() []float64 {
 	return xs
 }
 
+func (f File) col(name string) (Column, bool) {
+	for _, col := range f.Cols {
+		if col.Name != name {
+			continue
+		}
+		return col, true
+	}
+	return Column{}, false
+}
+
 func (f File) AccX() []float64 {
-	col := f.Cols[3]
-	if col.Name != "ACC x" {
+	col, ok := f.col("ACC x")
+	if !ok {
 		return nil
 	}
 	return col.Data.([]float64)
 }
 
 func (f File) AccY() []float64 {
-	col := f.Cols[4]
-	if col.Name != "ACC y" {
+	col, ok := f.col("ACC y")
+	if !ok {
 		return nil
 	}
 	return col.Data.([]float64)
 }
 
 func (f File) AccZ() []float64 {
-	col := f.Cols[5]
-	if col.Name != "ACC z" {
+	col, ok := f.col("ACC z")
+	if !ok {
 		return nil
 	}
 	return col.Data.([]float64)
