@@ -141,7 +141,14 @@ func (srv *server) wrap(fn func(w http.ResponseWriter, r *http.Request) error) h
 
 		if err := fn(w, r); err != nil {
 			log.Printf("error %q: %v\n", r.URL.Path, err.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+
+			json.NewEncoder(w).Encode(struct {
+				Err string `json:"error"`
+			}{Err: err.Error()})
+
 		}
 	}
 }
@@ -314,6 +321,7 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 	err = json.NewEncoder(w).Encode(struct {
 		Names  []string `json:"names"`
 		Images []string `json:"imgs"`
+		Error  string   `json:"error"`
 	}{
 		Names:  names,
 		Images: stdimgs,
@@ -627,7 +635,10 @@ const page = `<html>
 				plotCallback(data, status, id);
 			},
 			error: function(e) {
-				alert("processing failed: "+e);
+				alert("processing failed: "+JSON.parse(e.responseText).error);
+				var node = $("#"+id);
+				node.remove();
+				updateHeight();
 			}
 		});
 	};
@@ -734,23 +745,6 @@ const page = `<html>
 			<br>
 			<input type="button" onclick="run()" value="Run">
 		</form>
-
-
-	<!--
-	<form id="app-form" enctype="multipart/form-data">
-		<label for="file-upload" class="file-upload" style="font-size:16px">
-		<i class="fa fa-cloud-upload" aria-hidden="true" style="font-size:16px"></i> Upload
-		</label>
-		<input id="input-file" type="file" name="input-file"/>
-		<input type="hidden" name="token" value="{{.Token}}"/>
-		<input type="hidden" value="upload" />
-		<br>
-		Chunk size: <input id="chunksz" type="number" name="chunksz" min="1"  value="256">
-		<br>
-		<input type="button" onclick="run()" value="Run">
-	</form>
-	-->
-
 
 	</div>
 	<br>
