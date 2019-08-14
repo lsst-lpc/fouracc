@@ -210,6 +210,18 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 	}
 	log.Printf("chunks: %d", chunksz)
 
+	xmin, err := strconv.Atoi(r.PostFormValue("xmin"))
+	if err != nil {
+		return errors.Wrap(err, "could not parse min channel value")
+	}
+	log.Printf("xmin: %d", xmin)
+
+	xmax, err := strconv.Atoi(r.PostFormValue("xmax"))
+	if err != nil {
+		return errors.Wrap(err, "could not parse max channel value")
+	}
+	log.Printf("xmax: %d", xmax)
+
 	var head [64]byte
 	_, err = io.ReadFull(f, head[:])
 	if err != nil {
@@ -230,9 +242,14 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 	case isMSR:
 		msr, err := msr.Parse(f)
 		if err != nil {
-			log.Fatalf("could not parse MSR file: %v", err)
+			return errors.Wrap(err, "could not parse MSR file")
 		}
-		ts := msr.TimeSeries()
+		ts := msr.Axis()
+		beg, end, err := clean(len(ts), xmin, xmax)
+		if err != nil {
+			return errors.Wrap(err, "could not infer data slice range")
+		}
+		ts = ts[beg:end]
 		var (
 			grp errgroup.Group
 		)
@@ -243,9 +260,9 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 			name string
 			data []float64
 		}{
-			{0, "x", msr.AccX()},
-			{1, "y", msr.AccY()},
-			{2, "z", msr.AccZ()},
+			{0, "x", msr.AccX()[beg:end]},
+			{1, "y", msr.AccY()[beg:end]},
+			{2, "z", msr.AccZ()[beg:end]},
 		} {
 			tt := tt
 			grp.Go(func() error {
@@ -269,6 +286,12 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 			log.Printf(">>> err load: %v", err)
 			return errors.Wrapf(err, "could not load input file")
 		}
+		beg, end, err := clean(len(xs), xmin, xmax)
+		if err != nil {
+			return errors.Wrap(err, "could not infer data slice range")
+		}
+		xs = xs[beg:end]
+		ys = ys[beg:end]
 
 		img, err := srv.process(id, fname, "", chunksz, xs, ys)
 		if err != nil {
@@ -497,6 +520,21 @@ func (srv *server) process(id, fname, axis string, chunksz int, xs, ys []float64
 	return o.Bytes(), nil
 }
 
+func clean(len, beg, end int) (int, int, error) {
+	if end == -1 {
+		end = len
+	}
+	switch {
+	case end > len:
+		return beg, end, errors.Errorf("invalid data range (end=%d > len=%d)", end, len)
+	case beg > end:
+		return beg, end, errors.Errorf("invalid data range (beg=%d > end=%d)", beg, end)
+	case beg > len:
+		return beg, end, errors.Errorf("invalid data range (beg=%d > len=%d)", end, len)
+	}
+	return beg, end, nil
+}
+
 const page = `<html>
 <head>
     <title>FourAcc Analyzer</title>
@@ -567,11 +605,15 @@ const page = `<html>
 		//$("#input-file").val("");
 		
 		var chunks = $("#chunksz").val();
+		var xmin = $("#xmin").val();
+		var xmax = $("#xmax").val();
 		var data = new FormData();
 		data.append("chunksz", chunks);
 		data.append("uri", uri);
 		data.append("input-file", file, uri);
 		data.append("id", id);
+		data.append("xmin", xmin);
+		data.append("xmax", xmax);
 
 		plotPlaceholder(id);
 
@@ -685,6 +727,10 @@ const page = `<html>
 			<input id="input-file" type="file" name="input-file"/>
 			<br>
 			Chunk size: <input id="chunksz" type="number" name="chunksz" min="1"  value="256">
+			<br>
+			x-min: <input id="xmin" type="number" name="xmin" min="0"  value="0">
+			<br>
+			x-max: <input id="xmax" type="number" name="xmax" min="-1"  value="-1">
 			<br>
 			<input type="button" onclick="run()" value="Run">
 		</form>

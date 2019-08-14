@@ -27,12 +27,17 @@ func main() {
 	log.SetPrefix("fouracc: ")
 	log.SetFlags(0)
 
-	chunksz := flag.Int("chunks", 256, "chunk size of Fourier processing")
+	var (
+		chunksz = flag.Int("chunks", 256, "chunk size of Fourier processing")
+		xmin    = flag.Int("xmin", 0, "start of analysis range index")
+		xmax    = flag.Int("xmax", -1, "end of analysis range index")
+	)
 
 	flag.Parse()
 
 	log.Printf("chunk size: %v", *chunksz)
 	log.Printf("file:       %v", flag.Arg(0))
+	log.Printf("range:      data[%d:%d]", *xmin, *xmax)
 
 	f, err := os.Open(flag.Arg(0))
 	if err != nil {
@@ -54,15 +59,20 @@ func main() {
 		if err != nil {
 			log.Fatalf("could not parse MSR file: %v", err)
 		}
-		ts := msr.TimeSeries()
+		ts := msr.Axis()
+		beg, end, err := clean(len(ts), *xmin, *xmax)
+		if err != nil {
+			log.Fatal(err)
+		}
+		ts = ts[beg:end]
 		var grp errgroup.Group
 		for _, tt := range []struct {
 			Name string
 			Data []float64
 		}{
-			{"x", msr.AccX()},
-			{"y", msr.AccY()},
-			{"z", msr.AccZ()},
+			{"x", msr.AccX()[beg:end]},
+			{"y", msr.AccY()[beg:end]},
+			{"z", msr.AccZ()[beg:end]},
 		} {
 			grp.Go(func() error {
 				tt := tt
@@ -83,11 +93,32 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		beg, end, err := clean(len(xs), *xmin, *xmax)
+		if err != nil {
+			log.Fatal(err)
+		}
+		xs = xs[beg:end]
+		ys = ys[beg:end]
 		err = process(filepath.Base(flag.Arg(0)), "", *chunksz, xs, ys)
 		if err != nil {
 			log.Fatalf("could not process data: %v", err)
 		}
 	}
+}
+
+func clean(len, beg, end int) (int, int, error) {
+	if end == -1 {
+		end = len
+	}
+	switch {
+	case end > len:
+		return beg, end, errors.Errorf("invalid data range (end=%d > len=%d)", end, len)
+	case beg > end:
+		return beg, end, errors.Errorf("invalid data range (beg=%d > end=%d)", beg, end)
+	case beg > len:
+		return beg, end, errors.Errorf("invalid data range (beg=%d > len=%d)", end, len)
+	}
+	return beg, end, nil
 }
 
 func process(fname, title string, chunksz int, xs, ys []float64) error {

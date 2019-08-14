@@ -20,6 +20,14 @@ type File struct {
 	Cols  []Column
 }
 
+func (f File) Axis() []float64 {
+	xs := make([]float64, len(f.AccX()))
+	for i := range xs {
+		xs[i] = float64(i)
+	}
+	return xs
+}
+
 func (f File) TimeSeries() []float64 {
 	col := f.Cols[0]
 	if col.Name != "Time" {
