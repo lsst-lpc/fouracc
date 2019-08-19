@@ -20,6 +20,13 @@ type File struct {
 	Cols  []Column
 }
 
+func (f File) Freq() float64 {
+	ts := f.Cols[0].Data.([]time.Time)
+	delta := ts[len(ts)-1].Sub(f.Start)
+	freq := float64(len(ts)) / delta.Seconds()
+	return freq
+}
+
 func (f File) Axis() []float64 {
 	xs := make([]float64, len(f.AccX()))
 	for i := range xs {

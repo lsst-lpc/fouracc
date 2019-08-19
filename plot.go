@@ -49,7 +49,12 @@ func topPlot(dc draw.Canvas, fft FFT) error {
 	}
 
 	p := hplot.New()
-	p.Title.Text = fmt.Sprintf("%s -- chunks=%d", fft.Name, fft.Chunks)
+	switch {
+	case fft.Scale > 0:
+		p.Title.Text = fmt.Sprintf("%s -- chunks=%d (freq=%v Hz)", fft.Name, fft.Chunks, fft.Scale)
+	default:
+		p.Title.Text = fmt.Sprintf("%s -- chunks=%d", fft.Name, fft.Chunks)
+	}
 	line, err := hplot.NewLine(hplot.ZipXY(fft.Data.X, fft.Data.Y))
 	if err != nil {
 		return errors.Wrap(err, "fouracc: could not create new-line")

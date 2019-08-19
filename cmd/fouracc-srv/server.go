@@ -251,6 +251,7 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return errors.Wrap(err, "could not parse MSR file")
 		}
+		freq := msr.Freq()
 		ts := msr.Axis()
 		beg, end, err := clean(len(ts), xmin, xmax)
 		if err != nil {
@@ -273,7 +274,7 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 		} {
 			tt := tt
 			grp.Go(func() error {
-				img, err := srv.process(id, fname, tt.name, chunksz, ts, tt.data)
+				img, err := srv.process(id, fname, tt.name, chunksz, ts, tt.data, freq)
 				if err != nil {
 					return errors.Wrapf(err, "could not process axis %s: %v", tt.name, err)
 				}
@@ -300,7 +301,7 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 		xs = xs[beg:end]
 		ys = ys[beg:end]
 
-		img, err := srv.process(id, fname, "", chunksz, xs, ys)
+		img, err := srv.process(id, fname, "", chunksz, xs, ys, -1)
 		if err != nil {
 			return errors.Wrap(err, "could not process CSV file")
 		}
@@ -490,7 +491,7 @@ func (srv *server) save(dir, id, fname, axis string, img []byte, fft fouracc.FFT
 	return nil
 }
 
-func (srv *server) process(id, fname, axis string, chunksz int, xs, ys []float64) ([]byte, error) {
+func (srv *server) process(id, fname, axis string, chunksz int, xs, ys []float64, freq float64) ([]byte, error) {
 	name := fname
 	if axis != "" {
 		name += " [axis=" + axis + "]"
@@ -498,7 +499,7 @@ func (srv *server) process(id, fname, axis string, chunksz int, xs, ys []float64
 
 	log.Printf("processing %q...", name)
 
-	fft := fouracc.ChunkedFFT(name, chunksz, xs, ys)
+	fft := fouracc.ChunkedFFT(name, chunksz, xs, ys, freq)
 
 	const (
 		width  = 20 * vg.Centimeter

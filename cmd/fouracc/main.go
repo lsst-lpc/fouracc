@@ -60,6 +60,7 @@ func main() {
 			log.Fatalf("could not parse MSR file: %v", err)
 		}
 		ts := msr.Axis()
+		freq := msr.Freq()
 		beg, end, err := clean(len(ts), *xmin, *xmax)
 		if err != nil {
 			log.Fatal(err)
@@ -74,9 +75,9 @@ func main() {
 			{"y", msr.AccY()[beg:end]},
 			{"z", msr.AccZ()[beg:end]},
 		} {
+			tt := tt
 			grp.Go(func() error {
-				tt := tt
-				err := process(filepath.Base(flag.Arg(0)), tt.Name, *chunksz, ts, tt.Data)
+				err := process(filepath.Base(flag.Arg(0)), tt.Name, *chunksz, ts, tt.Data, freq)
 				if err != nil {
 					return errors.Wrapf(err, "could not process axis %s: %v", tt.Name, err)
 				}
@@ -99,7 +100,7 @@ func main() {
 		}
 		xs = xs[beg:end]
 		ys = ys[beg:end]
-		err = process(filepath.Base(flag.Arg(0)), "", *chunksz, xs, ys)
+		err = process(filepath.Base(flag.Arg(0)), "", *chunksz, xs, ys, -1)
 		if err != nil {
 			log.Fatalf("could not process data: %v", err)
 		}
@@ -121,14 +122,14 @@ func clean(len, beg, end int) (int, int, error) {
 	return beg, end, nil
 }
 
-func process(fname, title string, chunksz int, xs, ys []float64) error {
+func process(fname, title string, chunksz int, xs, ys []float64, freq float64) error {
 	log.Printf("data: %d", len(ys))
 
 	if title != "" {
 		fname += " [axis=" + title + "]"
 	}
 
-	fft := fouracc.ChunkedFFT(fname, chunksz, xs, ys)
+	fft := fouracc.ChunkedFFT(fname, chunksz, xs, ys, freq)
 	log.Printf("coeffs: %d", len(fft.Coeffs))
 	{
 		c, r := fft.Dims()

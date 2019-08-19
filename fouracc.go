@@ -23,10 +23,14 @@ type FFT struct {
 
 	Name   string
 	Chunks int
+	Scale  float64 // Frequency scale
 }
 
-func ChunkedFFT(fname string, chunksz int, xs, ys []float64) FFT {
-	const scale = 1587.3 // Hz
+func ChunkedFFT(fname string, chunksz int, xs, ys []float64, freq float64) FFT {
+	scale := 1.0
+	if freq > 0 {
+		scale = freq
+	}
 	var (
 		wrk   = make([]complex128, chunksz)
 		fft   = fourier.NewFFT(chunksz)
@@ -68,6 +72,7 @@ func ChunkedFFT(fname string, chunksz int, xs, ys []float64) FFT {
 		Ts: ts, Freqs: freqs, Coeffs: out,
 		Name:   fname,
 		Chunks: chunksz,
+		Scale:  freq,
 	}
 	cfft.Data.X = xs
 	cfft.Data.Y = ys
