@@ -9,7 +9,7 @@ import (
 	"math"
 	"math/cmplx"
 
-	"gonum.org/v1/gonum/fourier"
+	"gonum.org/v1/gonum/dsp/fourier"
 )
 
 type FFT struct {
