@@ -16,7 +16,6 @@ import (
 
 	"github.com/lsst-lpc/fouracc"
 	"github.com/lsst-lpc/fouracc/msr"
-	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 	"gonum.org/v1/plot/vg"
 	"gonum.org/v1/plot/vg/draw"
@@ -79,7 +78,7 @@ func main() {
 			grp.Go(func() error {
 				err := process(filepath.Base(flag.Arg(0)), tt.Name, *chunksz, ts, tt.Data, freq)
 				if err != nil {
-					return errors.Wrapf(err, "could not process axis %s: %v", tt.Name, err)
+					return fmt.Errorf("could not process axis %s: %w", tt.Name, err)
 				}
 				return nil
 			})
@@ -113,11 +112,11 @@ func clean(len, beg, end int) (int, int, error) {
 	}
 	switch {
 	case end > len:
-		return beg, end, errors.Errorf("invalid data range (end=%d > len=%d)", end, len)
+		return beg, end, fmt.Errorf("invalid data range (end=%d > len=%d)", end, len)
 	case beg > end:
-		return beg, end, errors.Errorf("invalid data range (beg=%d > end=%d)", beg, end)
+		return beg, end, fmt.Errorf("invalid data range (beg=%d > end=%d)", beg, end)
 	case beg > len:
-		return beg, end, errors.Errorf("invalid data range (beg=%d > len=%d)", end, len)
+		return beg, end, fmt.Errorf("invalid data range (beg=%d > len=%d)", end, len)
 	}
 	return beg, end, nil
 }
@@ -144,7 +143,7 @@ func process(fname, title string, chunksz int, xs, ys []float64, freq float64) e
 	c := vgimg.PngCanvas{Canvas: vgimg.New(width, height)}
 	err := fouracc.Plot(draw.New(c), fft)
 	if err != nil {
-		return errors.Wrap(err, "could not plot FFT")
+		return fmt.Errorf("could not plot FFT: %w", err)
 	}
 
 	oname := "out.png"
@@ -154,16 +153,16 @@ func process(fname, title string, chunksz int, xs, ys []float64, freq float64) e
 
 	o, err := os.Create(oname)
 	if err != nil {
-		return errors.Wrapf(err, "could not create output file")
+		return fmt.Errorf("could not create output file: %w", err)
 	}
 	defer o.Close()
 	_, err = c.WriteTo(o)
 	if err != nil {
-		return errors.Wrapf(err, "could not create output plot")
+		return fmt.Errorf("could not create output plot: %w", err)
 	}
 	err = o.Close()
 	if err != nil {
-		return errors.Wrapf(err, "could not close output file")
+		return fmt.Errorf("could not close output file: %w", err)
 	}
 
 	return nil

@@ -25,7 +25,6 @@ import (
 	uuid "github.com/hashicorp/go-uuid"
 	"github.com/lsst-lpc/fouracc"
 	"github.com/lsst-lpc/fouracc/msr"
-	"github.com/pkg/errors"
 	"go-hep.org/x/hep/csvutil"
 	"golang.org/x/sync/errgroup"
 	"gonum.org/v1/plot/vg"
@@ -116,7 +115,7 @@ func (srv *server) setCookie(w http.ResponseWriter, r *http.Request) error {
 
 	v, err := uuid.GenerateUUID()
 	if err != nil {
-		return errors.Wrapf(err, "could not generate UUID")
+		return fmt.Errorf("could not generate UUID: %w", err)
 	}
 
 	cookie = &http.Cookie{
@@ -179,18 +178,18 @@ func (srv *server) rootHandle(w http.ResponseWriter, r *http.Request) error {
 func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 	cookie, err := r.Cookie(cookieName)
 	if err != nil {
-		return errors.Wrap(err, "could not retrieve cookie")
+		return fmt.Errorf("could not retrieve cookie: %w", err)
 	}
 
 	err = r.ParseMultipartForm(500 << 20)
 	if err != nil {
-		return errors.Wrapf(err, "could not parse multipart form")
+		return fmt.Errorf("could not parse multipart form: %w", err)
 	}
 
 	id := r.PostFormValue("id")
 	if id == "" {
 		log.Printf("empty ID")
-		return errors.Wrap(err, "invalid form ID")
+		return fmt.Errorf("invalid form ID: %w", err)
 	}
 
 	srv.mu.Lock()
@@ -202,7 +201,7 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 
 	f, handler, err := r.FormFile("input-file")
 	if err != nil {
-		return errors.Wrapf(err, "could not access input file")
+		return fmt.Errorf("could not access input file: %w", err)
 	}
 	defer f.Close()
 	fname := handler.Filename
@@ -213,30 +212,30 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 
 	chunksz, err := strconv.Atoi(r.PostFormValue("chunksz"))
 	if err != nil {
-		return errors.Wrap(err, "could not parse chunks-size")
+		return fmt.Errorf("could not parse chunks-size: %w", err)
 	}
 	log.Printf("chunks: %d", chunksz)
 
 	xmin, err := strconv.Atoi(r.PostFormValue("xmin"))
 	if err != nil {
-		return errors.Wrap(err, "could not parse min channel value")
+		return fmt.Errorf("could not parse min channel value: %w", err)
 	}
 	log.Printf("xmin: %d", xmin)
 
 	xmax, err := strconv.Atoi(r.PostFormValue("xmax"))
 	if err != nil {
-		return errors.Wrap(err, "could not parse max channel value")
+		return fmt.Errorf("could not parse max channel value: %w", err)
 	}
 	log.Printf("xmax: %d", xmax)
 
 	var head [64]byte
 	_, err = io.ReadFull(f, head[:])
 	if err != nil {
-		return errors.Wrap(err, "could not read CSV header")
+		return fmt.Errorf("could not read CSV header: %w", err)
 	}
 	_, err = f.Seek(0, io.SeekStart)
 	if err != nil {
-		return errors.Wrap(err, "could not rewind CSV file")
+		return fmt.Errorf("could not rewind CSV file: %w", err)
 	}
 
 	var (
@@ -249,13 +248,13 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 	case isMSR:
 		msr, err := msr.Parse(f)
 		if err != nil {
-			return errors.Wrap(err, "could not parse MSR file")
+			return fmt.Errorf("could not parse MSR file: %w", err)
 		}
 		freq := msr.Freq()
 		ts := msr.Axis()
 		beg, end, err := clean(len(ts), xmin, xmax)
 		if err != nil {
-			return errors.Wrap(err, "could not infer data slice range")
+			return fmt.Errorf("could not infer data slice range: %w", err)
 		}
 		ts = ts[beg:end]
 		var (
@@ -276,7 +275,7 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 			grp.Go(func() error {
 				img, err := srv.process(id, fname, tt.name, chunksz, ts, tt.data, freq)
 				if err != nil {
-					return errors.Wrapf(err, "could not process axis %s: %v", tt.name, err)
+					return fmt.Errorf("could not process axis %s: %w", tt.name, err)
 				}
 				imgs[tt.id] = img
 				names[tt.id] = tt.name
@@ -285,25 +284,25 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 		}
 		err = grp.Wait()
 		if err != nil {
-			return errors.Wrap(err, "could not process MSR file")
+			return fmt.Errorf("could not process MSR file: %w", err)
 		}
 
 	default:
 		xs, ys, err := fouracc.Load(f)
 		if err != nil {
 			log.Printf(">>> err load: %v", err)
-			return errors.Wrapf(err, "could not load input file")
+			return fmt.Errorf("could not load input file: %w", err)
 		}
 		beg, end, err := clean(len(xs), xmin, xmax)
 		if err != nil {
-			return errors.Wrap(err, "could not infer data slice range")
+			return fmt.Errorf("could not infer data slice range: %w", err)
 		}
 		xs = xs[beg:end]
 		ys = ys[beg:end]
 
 		img, err := srv.process(id, fname, "", chunksz, xs, ys, -1)
 		if err != nil {
-			return errors.Wrap(err, "could not process CSV file")
+			return fmt.Errorf("could not process CSV file: %w", err)
 		}
 		imgs = append(imgs, img)
 		names = append(names, "")
@@ -329,7 +328,7 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 	})
 	if err != nil {
 		log.Printf(">>> err json encoder: %v", err)
-		return errors.Wrapf(err, "could not encode to json")
+		return fmt.Errorf("could not encode to json: %w", err)
 	}
 
 	return nil
@@ -338,18 +337,18 @@ func (srv *server) runHandle(w http.ResponseWriter, r *http.Request) error {
 func (srv *server) dlHandle(w http.ResponseWriter, r *http.Request) error {
 	cookie, err := r.Cookie(cookieName)
 	if err != nil {
-		return errors.Wrap(err, "could not retrieve cookie")
+		return fmt.Errorf("could not retrieve cookie: %w", err)
 	}
 
 	err = r.ParseForm()
 	if err != nil {
-		return errors.Wrapf(err, "could not parse multipart form")
+		return fmt.Errorf("could not parse multipart form: %w", err)
 	}
 
 	id := r.Form.Get("id")
 	if id == "" {
 		log.Printf(">>> empty ID")
-		return errors.Errorf("invalid ID")
+		return fmt.Errorf("invalid ID")
 	}
 
 	axis := r.Form.Get("axis")
@@ -357,14 +356,14 @@ func (srv *server) dlHandle(w http.ResponseWriter, r *http.Request) error {
 	case "", "x", "y", "z":
 		// ok
 	default:
-		return errors.Errorf("invalid axis %q", axis)
+		return fmt.Errorf("invalid axis %q", axis)
 	}
 
 	srv.mu.RLock()
 	defer srv.mu.RUnlock()
 	if _, ok := srv.ids[cookie.Value][id]; !ok {
 		log.Printf("unknown ID %s", id)
-		return errors.Errorf("unknown ID %q", id)
+		return fmt.Errorf("unknown ID %q", id)
 	}
 
 	dir := filepath.Join(srv.dir, "id", id)
@@ -377,19 +376,19 @@ func (srv *server) dlHandle(w http.ResponseWriter, r *http.Request) error {
 	matches, err := filepath.Glob(filepath.Join(dir, glob))
 	if err != nil {
 		log.Printf("could not find data file report for id %q: %v", id, err)
-		return errors.Wrapf(err, "could not find data file report for %q", id)
+		return fmt.Errorf("could not find data file report for %q: %w", id, err)
 	}
 
 	if len(matches) != 1 {
 		log.Printf("invalid number of data file report(s) for id %q (glob=%q): got=%d, want=1\nmatches: %q", id, glob, len(matches), matches)
-		return errors.Errorf("invalid number of data file report(s) for id %q: got=%d, want=1", id, len(matches))
+		return fmt.Errorf("invalid number of data file report(s) for id %q: got=%d, want=1", id, len(matches))
 	}
 
 	fname := matches[0]
 	f, err := os.Open(fname)
 	if err != nil {
 		log.Printf("could not open data file report for id %q: %v", id, err)
-		return errors.Wrapf(err, "could not open data file report for id %q", id)
+		return fmt.Errorf("could not open data file report for id %q: %w", id, err)
 	}
 	defer f.Close()
 
@@ -401,7 +400,7 @@ func (srv *server) dlHandle(w http.ResponseWriter, r *http.Request) error {
 	_, err = io.Copy(w, f)
 	if err != nil {
 		log.Printf("could not copy data file report for id %q: %v", id, err)
-		return errors.Wrapf(err, "could not copy data file report for id %q", id)
+		return fmt.Errorf("could not copy data file report for id %q: %w", id, err)
 	}
 
 	return nil
@@ -410,25 +409,25 @@ func (srv *server) dlHandle(w http.ResponseWriter, r *http.Request) error {
 func (srv *server) rmHandle(w http.ResponseWriter, r *http.Request) error {
 	cookie, err := r.Cookie(cookieName)
 	if err != nil {
-		return errors.Wrap(err, "could not retrieve cookie")
+		return fmt.Errorf("could not retrieve cookie: %w", err)
 	}
 
 	err = r.ParseMultipartForm(500 << 20)
 	if err != nil {
-		return errors.Wrapf(err, "could not parse multipart form")
+		return fmt.Errorf("could not parse multipart form: %w", err)
 	}
 
 	id := r.PostFormValue("id")
 	if id == "" {
 		log.Printf(">>> empty ID")
-		return errors.Errorf("invalid ID")
+		return fmt.Errorf("invalid ID")
 	}
 
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 	if _, ok := srv.ids[cookie.Value][id]; !ok {
 		log.Printf("unknown ID %s", id)
-		return errors.Errorf("unknown ID %q", id)
+		return fmt.Errorf("unknown ID %q", id)
 	}
 	delete(srv.ids[cookie.Value], id)
 
@@ -436,7 +435,7 @@ func (srv *server) rmHandle(w http.ResponseWriter, r *http.Request) error {
 	err = os.RemoveAll(dir)
 	if err != nil {
 		log.Printf("could not remove output results directory %q: %v", dir, err)
-		return errors.Wrapf(err, "could not remove output results directory %q", id)
+		return fmt.Errorf("could not remove output results directory %q: %w", id, err)
 	}
 
 	return nil
@@ -446,7 +445,7 @@ func (srv *server) save(dir, id, fname, axis string, img []byte, fft fouracc.FFT
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		log.Printf("could not create output directory for results %s: %v", dir, err)
-		return errors.Wrapf(err, "could not create output directory %s for results", id)
+		return fmt.Errorf("could not create output directory %s for results: %w", id, err)
 	}
 
 	bname := fname[:len(fname)-len(filepath.Ext(fname))]
@@ -456,7 +455,7 @@ func (srv *server) save(dir, id, fname, axis string, img []byte, fft fouracc.FFT
 	err = ioutil.WriteFile(filepath.Join(dir, bname+".png"), img, 0644)
 	if err != nil {
 		log.Printf("could not save plot file %s: %v", bname+".png", err)
-		return errors.Wrapf(err, "could not save plot %q", id)
+		return fmt.Errorf("could not save plot %q: %w", id, err)
 	}
 
 	oname := filepath.Join(dir, fmt.Sprintf("%s.processed.chunksz-%d.csv", bname, fft.Chunks))
@@ -464,7 +463,7 @@ func (srv *server) save(dir, id, fname, axis string, img []byte, fft fouracc.FFT
 	tbl, err := csvutil.Create(oname)
 	if err != nil {
 		log.Printf("could not create output data file %q: %v", oname, err)
-		return errors.Wrapf(err, "could not create output data file %q", id)
+		return fmt.Errorf("could not create output data file %q: %w", id, err)
 	}
 	defer tbl.Close()
 
@@ -478,14 +477,14 @@ func (srv *server) save(dir, id, fname, axis string, img []byte, fft fouracc.FFT
 		err = tbl.WriteRow(args...)
 		if err != nil {
 			log.Printf("could not write row %d for output data file %q: %v", i, id, err)
-			return errors.Wrapf(err, "could not write row %d for output data file %q", i, id)
+			return fmt.Errorf("could not write row %d for output data file %q: %w", i, id, err)
 		}
 	}
 
 	err = tbl.Close()
 	if err != nil {
 		log.Printf("could not close output data file %q: %v", id, err)
-		return errors.Wrapf(err, "could not close output data file %q", id)
+		return fmt.Errorf("could not close output data file %q: %w", id, err)
 	}
 
 	return nil
@@ -509,20 +508,20 @@ func (srv *server) process(id, fname, axis string, chunksz int, xs, ys []float64
 	c := vgimg.PngCanvas{Canvas: vgimg.New(width, height)}
 	err := fouracc.Plot(draw.New(c), fft)
 	if err != nil {
-		return nil, errors.Wrap(err, "could not plot FFT")
+		return nil, fmt.Errorf("could not plot FFT: %w", err)
 	}
 
 	o := new(bytes.Buffer)
 	_, err = c.WriteTo(o)
 	if err != nil {
-		return nil, errors.Wrapf(err, "could not create output plot")
+		return nil, fmt.Errorf("could not create output plot: %w", err)
 	}
 
 	dir := filepath.Join(srv.dir, "id", id)
 	err = srv.save(dir, id, fname, axis, o.Bytes(), fft)
 	if err != nil {
 		log.Printf("could not save report for %q: %v", name, err)
-		return nil, errors.Wrapf(err, "could not save report for %q", name)
+		return nil, fmt.Errorf("could not save report for %q: %w", name, err)
 	}
 
 	log.Printf("processing %q... [done]", name)
@@ -535,11 +534,11 @@ func clean(len, beg, end int) (int, int, error) {
 	}
 	switch {
 	case end > len:
-		return beg, end, errors.Errorf("invalid data range (end=%d > len=%d)", end, len)
+		return beg, end, fmt.Errorf("invalid data range (end=%d > len=%d)", end, len)
 	case beg > end:
-		return beg, end, errors.Errorf("invalid data range (beg=%d > end=%d)", beg, end)
+		return beg, end, fmt.Errorf("invalid data range (beg=%d > end=%d)", beg, end)
 	case beg > len:
-		return beg, end, errors.Errorf("invalid data range (beg=%d > len=%d)", end, len)
+		return beg, end, fmt.Errorf("invalid data range (beg=%d > len=%d)", end, len)
 	}
 	return beg, end, nil
 }

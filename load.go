@@ -7,9 +7,9 @@ package fouracc
 import (
 	"bufio"
 	"encoding/csv"
+	"fmt"
 	"io"
 
-	"github.com/pkg/errors"
 	"go-hep.org/x/hep/csvutil"
 )
 
@@ -23,7 +23,7 @@ func Load(r io.Reader) (xs, ys []float64, err error) {
 
 	rows, err := tbl.ReadRows(0, -1)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "fouracc: could not read rows")
+		return nil, nil, fmt.Errorf("fouracc: could not read rows: %w", err)
 	}
 	defer rows.Close()
 
@@ -32,7 +32,7 @@ func Load(r io.Reader) (xs, ys []float64, err error) {
 		var v float64
 		err = rows.Scan(&v)
 		if err != nil {
-			return nil, nil, errors.Wrapf(err, "fouracc: could not scan row %d", id)
+			return nil, nil, fmt.Errorf("fouracc: could not scan row %d: %w", id, err)
 		}
 		xs = append(xs, float64(id))
 		ys = append(ys, v)
@@ -41,7 +41,7 @@ func Load(r io.Reader) (xs, ys []float64, err error) {
 
 	if err := rows.Err(); err != nil {
 		if err != io.EOF {
-			return nil, nil, errors.Wrap(err, "fouracc: error while processing rows")
+			return nil, nil, fmt.Errorf("fouracc: error while processing rows: %w", err)
 		}
 	}
 

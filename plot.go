@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"image/color"
 
-	"github.com/pkg/errors"
 	"go-hep.org/x/hep/hplot"
 	"gonum.org/v1/plot/palette"
 	"gonum.org/v1/plot/plotter"
@@ -57,7 +56,7 @@ func topPlot(dc draw.Canvas, fft FFT) error {
 	}
 	line, err := hplot.NewLine(hplot.ZipXY(fft.Data.X, fft.Data.Y))
 	if err != nil {
-		return errors.Wrap(err, "fouracc: could not create new-line")
+		return fmt.Errorf("fouracc: could not create new-line: %w", err)
 	}
 	line.LineStyle.Color = color.RGBA{R: 255, A: 255}
 

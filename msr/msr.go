@@ -7,12 +7,11 @@ package msr
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 type File struct {
@@ -171,7 +170,7 @@ func Parse(r io.Reader) (File, error) {
 		case StartTimeSection:
 			start, err := time.Parse("2006-01-02;15:04:05;", txt)
 			if err != nil {
-				return msr, errors.Wrapf(err, "could not parse start-time %q", txt)
+				return msr, fmt.Errorf("could not parse start-time %q: %w", txt, err)
 			}
 			msr.Start = start
 
@@ -194,7 +193,7 @@ func Parse(r io.Reader) (File, error) {
 				if i > 0 {
 					delay, err := time.ParseDuration(tok + tokens[0])
 					if err != nil {
-						return msr, errors.Wrapf(err, "could not parse #%d-th time-delay %q", i, txt)
+						return msr, fmt.Errorf("could not parse #%d-th time-delay %q: %w", i, txt, err)
 					}
 					cols[i].TimeDelay = delay
 				}
@@ -224,7 +223,7 @@ func Parse(r io.Reader) (File, error) {
 			var row Row
 			row.Time, err = time.Parse("2006-01-02 15:04:05.999", tokens[0])
 			if err != nil {
-				return msr, errors.Wrapf(err, "could not parse data row[%d] %q", len(rows), txt)
+				return msr, fmt.Errorf("could not parse data row[%d] %q: %w", len(rows), txt, err)
 			}
 			cols[0].Data = append(cols[0].Data.([]time.Time), row.Time)
 			row.Data = make([]float64, len(tokens)-1)
@@ -241,7 +240,7 @@ func Parse(r io.Reader) (File, error) {
 				default:
 					val, err := strconv.ParseFloat(tok, 64)
 					if err != nil {
-						return msr, errors.Wrapf(err, "could not parse float %q in row %d", tok, len(rows))
+						return msr, fmt.Errorf("could not parse float %q in row %d: %w", tok, len(rows), err)
 					}
 					row.Data[i] = val
 				}
@@ -256,7 +255,7 @@ func Parse(r io.Reader) (File, error) {
 		err = nil
 	}
 	if err != nil {
-		return msr, errors.Wrap(err, "could not scan MSR file")
+		return msr, fmt.Errorf("could not scan MSR file: %w", err)
 	}
 
 	msr.Cols = cols
